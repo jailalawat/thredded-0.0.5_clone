@@ -1,5 +1,5 @@
-<div class="topic_nav">
-  <% cache ['topic-nav-actions', current_user, messageboard] do %>
+<div class="topic_nav <%= controller_name %>">
+  <% cache ['topic-nav-actions', current_user] do %>
     <% if can? :create, messageboard.topics.build %>
       <ul class="actions">
         <li class='new_topic'><%= link_to 'new topic', new_messageboard_topic_path(messageboard) %></li>
@@ -9,14 +9,12 @@
   <% end %>
 
   <ul class="listings">
-    <li class="topic_list"><%= link_to 'topics', messageboard_topics_path %></li>
-    <li class="private_topic_list">
-      <%= link_to messageboard_private_topics_path,
-        class: "unread-#{unread_private_topics_count}" do %>
-        private topics
-        <span><%= unread_private_topics_count %></span>
+    <% cache ['topic-nav-list', current_user] do %>
+      <li class="topic_list"><%= link_to 'topics', messageboard_topics_path %></li>
+      <% if can? :list, messageboard.private_topics.build %>
+        <li class="private_topic_list"><%= link_to 'private topics', messageboard_private_topics_path %></li>
       <% end %>
-    </li>
+    <% end %>
 
     <%= render 'thredded/search/form' %>
   </ul>

@@ -1,16 +1,28 @@
 module Thredded
-  class PostMailer < Thredded::BaseMailer
-    def at_notification(post_id, emails)
+  class PostMailer < ActionMailer::Base
+    def at_notification(post_id, user_emails)
       @post = Post.find(post_id)
-      email_details = TopicEmailDecorator.new(@post.postable)
-      headers['X-SMTPAPI'] = email_details.smtp_api_tag('at_notification')
 
-      mail \
-        from: email_details.no_reply,
-        to: email_details.no_reply,
-        bcc: emails,
-        reply_to: email_details.reply_to,
-        subject: email_details.subject
+      headers['X-SMTPAPI'] = %Q{{"category": ["thredded_#{@post.messageboard.name}","at_notification"]}}
+      mail from: no_reply,
+        to: no_reply,
+        bcc: user_emails,
+        reply_to: reply_to,
+        subject: subject
+    end
+
+    private
+
+    def subject
+      "#{Thredded.email_outgoing_prefix} #{@post.topic.title}"
+    end
+
+    def reply_to
+      "#{@post.topic.hash_id}@#{Thredded.email_incoming_host}"
+    end
+
+    def no_reply
+      Thredded.email_from
     end
   end
 end

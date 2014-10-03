@@ -1,8 +1,24 @@
 module Thredded
   class UserTopicDecorator
-    extend Forwardable
     extend ActiveModel::Naming
     include ActiveModel::Conversion
+
+    def initialize(user, topic)
+      @user = user || NullUser.new
+      @topic = topic
+    end
+
+    def method_missing(meth, *args)
+      if decorated_topic.respond_to?(meth)
+        decorated_topic.send(meth, *args)
+      else
+        super
+      end
+    end
+
+    def respond_to?(meth)
+      decorated_topic.respond_to?(meth)
+    end
 
     def self.decorate_all(user, topics)
       topics.map do |topic|
@@ -11,28 +27,8 @@ module Thredded
     end
 
     def self.model_name
-      ActiveModel::Name.new(self, nil, 'Topic')
+      ActiveModel::Name.new(self, nil, "Topic")
     end
-
-    def initialize(user, topic)
-      @user = user || NullUser.new
-      @topic = TopicDecorator.new(topic)
-    end
-
-    def method_missing(meth, *args)
-      if topic.respond_to?(meth)
-        topic.send(meth, *args)
-      else
-        super
-      end
-    end
-
-    def_delegators :topic,
-      :created_at_timeago,
-      :gravatar_url,
-      :last_user_link,
-      :original,
-      :updated_at_timeago
 
     def persisted?
       false
@@ -52,10 +48,24 @@ module Thredded
 
     def css_class
       if read?
-        "read #{topic.css_class}"
+        "read #{decorated_topic.css_class}"
       else
-        "unread #{topic.css_class}"
+        "unread #{decorated_topic.css_class}"
       end
+    end
+
+    def user_link
+      if topic.user && topic.user.valid?
+        user_path = Thredded.user_path(topic.user)
+        "<a href='#{user_path}'>#{topic.user}</a>".html_safe
+      else
+        '<a href="#">?</a>'.html_safe
+      end
+    end
+
+
+    def decorated_topic
+      @decorated_topic ||= TopicDecorator.new(topic)
     end
 
     private
@@ -63,7 +73,7 @@ module Thredded
     attr_reader :topic, :user
 
     def read_status
-      if user.id > 0
+      if user.valid?
         @read_status ||= topic.user_topic_reads.select do |reads|
           reads.user_id == user.id
         end

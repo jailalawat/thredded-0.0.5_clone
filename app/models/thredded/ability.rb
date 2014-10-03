@@ -4,7 +4,7 @@ module Thredded
 
     def initialize(user)
       user ||= Thredded::NullUser.new
-      user_details = user.thredded_user_detail
+      user_details = Thredded::UserDetail.where(user_id: user.id).first
 
       can :manage, :all if user_details.try(:superadmin?)
 
@@ -12,16 +12,8 @@ module Thredded
         Thredded::MessageboardUserPermissions.new(messageboard, user).readable?
       end
 
-      can :admin, Thredded::Topic do |topic|
-        Thredded::TopicUserPermissions.new(topic, user, user_details).adminable?
-      end
-
-      can :edit, Thredded::Topic do |topic|
-        Thredded::TopicUserPermissions.new(topic, user, user_details).editable?
-      end
-
-      can :update, Thredded::Topic do |topic|
-        Thredded::TopicUserPermissions.new(topic, user, user_details).editable?
+      can :manage, Thredded::Topic do |topic|
+        Thredded::TopicUserPermissions.new(topic, user, user_details).manageable?
       end
 
       can :read, Thredded::Topic do |topic|

@@ -5,10 +5,15 @@ module Thredded
     FILTERS = %w{markdown bbcode}
 
     extend FriendlyId
-    friendly_id :name, use: :slugged
+    friendly_id :name
 
     validates :filter, presence: true
     validates :filter, inclusion: { in: FILTERS }
+    validates :name, format: {
+      with: /\A[\w\-]+\z/,
+      on: :create,
+      message: 'should be letters, nums, dash, underscore only.'
+    }
     validates :name, length: {
       within: 1..16,
       message: 'should be between 1 and 16 characters'
@@ -19,27 +24,13 @@ module Thredded
     validates :security, inclusion: { in: SECURITY }
     validates :topics_count, numericality: true
 
-    has_many :categories, dependent: :destroy
-    has_many :messageboard_preferences, dependent: :destroy
-    has_many :posts, dependent: :destroy
-    has_many :private_topics, dependent: :destroy
-    has_many :roles, dependent: :destroy
-    has_many :topics, dependent: :destroy
+    has_many :categories
+    has_many :messageboard_preferences
+    has_many :posts
+    has_many :roles
+    has_many :topics
+    has_many :private_topics
     has_many :users, through: :roles, class_name: Thredded.user_class
-    has_many :active_roles, -> {
-      includes(:user)
-        .references(:user)
-        .where('last_seen > ?', 5.minutes.ago)
-        .order(:last_seen)
-    }, class_name: Thredded::Role
-
-    def self.find_by_slug(slug)
-      begin
-        friendly.find(slug)
-      rescue ActiveRecord::RecordNotFound
-        raise Thredded::Errors::MessageboardNotFound
-      end
-    end
 
     def self.default_scope
       where(closed: false).order('topics_count DESC')
@@ -51,13 +42,24 @@ module Thredded
       end
     end
 
-    def active_users
-      active_roles.map(&:user)
-    end
-
     def preferences_for(user)
       @preferences_for ||=
         messageboard_preferences.where(user_id: user).first_or_create
+    end
+
+    def active_users
+      Role
+        .joins(:user)
+        .where(messageboard_id: self.id)
+        .where('last_seen > ?', 5.minutes.ago)
+        .order(:last_seen)
+        .map(&:user)
+    end
+
+    def update_activity_for!(user)
+      if role = roles.where(user_id: user).first
+        role.update_attribute(:last_seen, Time.now.utc)
+      end
     end
 
     def decorate

@@ -1,26 +1,29 @@
-<% cache [current_user, 'post', post] do %>
-  <% post = Thredded::PostDecorator.new(post) %>
+<% post = Thredded::PostDecorator.new(post) %>
 
-  <%= content_tag_for(:article, post) do %>
+<%= content_tag_for(:article, post) do %>
+  <% cache post do %>
     <header>
       <%= image_tag post.gravatar_url, class: 'avatar' %>
       <cite>
-        <%= post.user_link %>
+        <%= post.user_name %>
         <%= post.created_at_timeago %>
       </cite>
     </header>
 
     <div class="content">
-      <%== post.filtered_content %>
+      <p><%= post.filtered_content %></p>
       <ul class="attachments"><%= render post.attachments %></ul>
     </div>
-
-    <footer>
-      <% if can? :edit, post.original %>
-        <%= link_to 'edit post',
-          edit_polymorphic_path([messageboard, post.postable, post]),
-          class: 'edit' %>
-      <% end %>
-    </footer>
   <% end %>
+
+  <footer>
+    <% if can? :edit, post.original %>
+      <%= link_to 'edit post', edit_messageboard_topic_post_path(
+          messageboard,
+          topic,
+          post
+        ),
+        class: 'edit' %>
+    <% end %>
+  </footer>
 <% end %>

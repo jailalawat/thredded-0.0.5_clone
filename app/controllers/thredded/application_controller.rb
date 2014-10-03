@@ -1,73 +1,19 @@
 module Thredded
   class ApplicationController < ::ApplicationController
-    layout Thredded.layout
-
     helper Thredded::Engine.helpers
-    helper_method \
-      :active_users,
-      :messageboard,
-      :preferences,
-      :unread_private_topics_count
+    helper_method :messageboard, :topic, :preferences
+    before_filter :update_user_activity
 
-    rescue_from CanCan::AccessDenied,
-      Thredded::Errors::MessageboardNotFound,
-      Thredded::Errors::MessageboardReadDenied,
-      Thredded::Errors::TopicCreateDenied do |exception|
-
-      redirect_to thredded.root_path, alert: exception.message
-    end
-
-    rescue_from Thredded::Errors::EmptySearchResults,
-      Thredded::Errors::TopicNotFound do |exception|
-
-      redirect_to messageboard_topics_path(messageboard),
-        alert: exception.message
-    end
-
-    def signed_in?
-      !current_user.anonymous?
+    rescue_from CanCan::AccessDenied do |exception|
+      redirect_to root_path, alert: exception.message
     end
 
     private
 
-    def unread_private_topics_count
-      Rails.cache.fetch("private_topics_count_#{messageboard.id}_#{current_user.id}") do
-        Thredded::PrivateTopic
-          .joins(:private_users)
-          .where(
-            messageboard: messageboard,
-            thredded_private_users: {
-              user_id: current_user.id,
-              read: false,
-            }
-          )
-          .count
-      end
-    end
-
-    def authorize_reading(obj)
-      if cannot? :read, obj
-        class_name = obj.class.to_s
-        error = class_name
-          .gsub(/Thredded::/, 'Thredded::Errors::') + 'ReadDenied'
-        raise error.constantize
-      end
-    end
-
-    def authorize_creating(obj)
-      if cannot? :create, obj
-        class_name = obj.class.to_s
-        error = class_name
-          .gsub(/Thredded::/, 'Thredded::Errors::') + 'CreateDenied'
-        raise error.constantize
-      end
-    end
-
     def update_user_activity
-      Thredded::ActivityUpdaterJob.queue.update_user_activity(
-        'messageboard_id' => messageboard.id,
-        'user_id' => current_user.id
-      )
+      if messageboard && current_user
+        messageboard.update_activity_for!(current_user)
+      end
     end
 
     def current_ability
@@ -75,22 +21,27 @@ module Thredded
     end
 
     def messageboard
-      @messageboard ||= Messageboard.find_by_slug(params[:messageboard_id])
+      if params.key? :messageboard_id
+        @messageboard ||= Messageboard.where(slug: params[:messageboard_id]).first
+      end
     end
 
     def preferences
-      @preferences ||= current_user.thredded_user_preference
+      if current_user
+        @preferences ||= UserPreference.where(user_id: current_user.id).first
+      end
     end
 
-    def current_user
-      super || NullUser.new
-    end
-
-    def active_users
+    def topic
       if messageboard
-        messageboard.active_users
-      else
-        []
+        @topic ||= messageboard.topics.find(params[:topic_id])
+      end
+    end
+
+    def ensure_messageboard_exists
+      if messageboard.blank?
+        redirect_to thredded.root_path,
+          flash: { error: 'This messageboard does not exist.' }
       end
     end
   end

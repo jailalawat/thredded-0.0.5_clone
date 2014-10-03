@@ -1,35 +1,37 @@
 module Thredded
   class PostsController < Thredded::ApplicationController
     load_and_authorize_resource only: [:index, :show]
-    helper_method :messageboard, :topic
-    before_filter :update_user_activity
+    helper_method :messageboard, :topic, :user_topic
+
+    rescue_from Thredded::Errors::TopicNotFound do |exception|
+      redirect_to messageboard_topics_path(messageboard),
+        alert: 'This topic does not exist.'
+    end
+
+    def index
+      authorize! :read, topic
+
+      @posts = topic.posts.page(current_page)
+      @post  = messageboard.posts.build(topic: topic)
+
+      update_read_status!
+    end
 
     def create
-      Thredded::Post.create(post_params)
-
-      reset_read_status if for_a_private_topic?
+      topic.posts.create(post_params)
       redirect_to :back
     end
 
     def edit
-      authorize! :edit, post
+      authorize! :manage, post
     end
 
     def update
-      post.update_attributes(post_params.except(:user, :ip))
-
-      redirect_to polymorphic_path([messageboard, post.postable])
-    end
-
-    def topic
-      post.postable
+      post.update_attributes(post_params)
+      redirect_to messageboard_topic_posts_url(messageboard, topic)
     end
 
     private
-
-    def reset_read_status
-      Thredded::UserResetsPrivateTopicToUnread.new(parent_topic, current_user).run
-    end
 
     def post_params
       params
@@ -40,31 +42,38 @@ module Thredded
           user: current_user,
           messageboard: messageboard,
           filter: messageboard.filter,
-          postable: parent_topic,
         )
     end
 
-    def parent_topic
-      if for_a_private_topic?
-        PrivateTopic
-          .includes(:private_users)
-          .where(messageboard: messageboard)
-          .friendly
-          .find(params[:private_topic_id])
-      else
-        Topic
-          .where(messageboard: messageboard)
-          .friendly
-          .find(params[:topic_id])
+    def update_read_status!
+      if current_user
+        read_history = UserTopicRead.where(
+          user: current_user,
+          topic: topic,
+        ).first_or_initialize
+
+        read_history.update_attributes(
+          farthest_post: @posts.last,
+          posts_count: topic.posts_count,
+          page: current_page,
+        )
       end
     end
 
-    def for_a_private_topic?
-      params[:private_topic_id].present?
+    def topic
+      @topic ||= topic_with_eager_loaded_user_topic_reads
+    end
+
+    def topic_with_eager_loaded_user_topic_reads
+      messageboard.topics.find_by_slug(params[:topic_id])
+    end
+
+    def user_topic
+      @user_topic ||= UserTopicDecorator.new(current_user, topic)
     end
 
     def post
-      @post ||= Thredded::Post.find(params[:id])
+      @post ||= topic.posts.find(params[:id])
     end
 
     def current_page

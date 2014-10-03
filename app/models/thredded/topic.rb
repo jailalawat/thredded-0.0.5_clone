@@ -2,40 +2,38 @@ require 'thredded/search_sql_builder'
 
 module Thredded
   class Topic < ActiveRecord::Base
-    extend FriendlyId
-    friendly_id :title, use: [:history, :scoped], scope: :messageboard
+    STATES = %w{pending approved}
 
+    extend FriendlyId
+    friendly_id :title, use: :scoped, scope: :messageboard
     paginates_per 50 if self.respond_to?(:paginates_per)
 
-    has_many :posts,
-      -> { includes :attachments },
-      as: :postable,
-      dependent: :destroy
-    has_many :topic_categories, dependent: :destroy
+    has_many :posts, -> { includes :attachments }
+    has_many :topic_categories
     has_many :categories, through: :topic_categories
-    has_many :user_topic_reads, dependent: :destroy
-    has_one :user_detail, through: :user, source: :thredded_user_detail
+    has_many :user_topic_reads
+
+    belongs_to :last_user, class_name: Thredded.user_class,
+      foreign_key: 'last_user_id'
 
     belongs_to :user, class_name: Thredded.user_class
-    belongs_to \
-      :last_user,
-      class_name: Thredded.user_class,
-      foreign_key: 'last_user_id'
-    belongs_to \
-      :messageboard,
-      counter_cache: true,
-      touch: true
 
+    belongs_to :messageboard, counter_cache: true, touch: true
+
+    validates_inclusion_of :state, in: STATES
     validates_presence_of :hash_id
     validates_presence_of :last_user_id
     validates_presence_of :messageboard_id
     validates_numericality_of :posts_count
     validates_uniqueness_of :hash_id
 
+    accepts_nested_attributes_for :posts, reject_if: :updating?
+    accepts_nested_attributes_for :categories
+
     delegate :name, :name=, :email, :email=, to: :user, prefix: true
 
     before_validation do
-      self.hash_id = SecureRandom.hex(10) if hash_id.nil?
+      self.hash_id = SecureRandom.hex(10) if self.hash_id.nil?
     end
 
     after_create :increment_topics_count
@@ -56,23 +54,23 @@ module Thredded
       where(messageboard_id: messageboard.id)
     end
 
-    def self.order_by_updated_time
-      order('thredded_topics.updated_at DESC')
+    def self.public
+      where("type IS NULL")
     end
 
     def self.order_by_stuck_and_updated_time
-      order('thredded_topics.sticky DESC, thredded_topics.updated_at DESC')
+      order('sticky DESC, updated_at DESC')
     end
 
-    def self.search(query, messageboard)
-      sql_builder = SearchSqlBuilder.new(query, messageboard)
-      sql = sql_builder.build
-      sql_params = [sql].concat(sql_builder.binds)
-      results = find_by_sql(sql_params)
-
-      fail(Thredded::Errors::EmptySearchResults, query) if results.empty?
-
-      results
+    def self.full_text_search(query, messageboard)
+      if query.empty?
+        []
+      else
+        sql_builder = SearchSqlBuilder.new(query, messageboard)
+        sql = sql_builder.build
+        sql_params = [sql].concat(sql_builder.binds)
+        find_by_sql sql_params
+      end
     end
 
     def self.decorate
@@ -81,18 +79,16 @@ module Thredded
       end
     end
 
-    def self.find_by_slug_with_user_topic_reads!(slug)
-      includes(:user_topic_reads).friendly.find(slug)
-    rescue ActiveRecord::RecordNotFound
-      raise Thredded::Errors::TopicNotFound
+    def self.find_by_slug(slug)
+      begin
+        includes(:user_topic_reads).friendly.find(slug)
+      rescue ActiveRecord::RecordNotFound
+        raise Thredded::Errors::TopicNotFound
+      end
     end
 
     def decorate
       TopicDecorator.new(self)
-    end
-
-    def user
-      super || NullUser.new
     end
 
     def last_user
@@ -105,6 +101,18 @@ module Thredded
 
     def private?
       false
+    end
+
+    def pending?
+      state == 'pending'
+    end
+
+    def users
+      []
+    end
+
+    def users_to_sentence
+      ''
     end
 
     def self.inherited(child)
@@ -130,21 +138,15 @@ module Thredded
     end
 
     def categories_to_sentence
-      categories.map(&:name).to_sentence if categories.any?
-    end
-
-    def users_to_sentence
-      []
-    end
-
-    def should_generate_new_friendly_id?
-      title_changed?
+      if categories
+        categories.map(&:name).to_sentence
+      end
     end
 
     private
 
     def increment_topics_count
-      user_detail.increment!(:topics_count) if user_detail
+      UserDetail.increment_counter(:topics_count, user_id)
     end
   end
 end

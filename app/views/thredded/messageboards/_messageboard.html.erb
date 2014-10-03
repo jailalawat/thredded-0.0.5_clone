@@ -13,7 +13,7 @@
     <footer>
       <p>
         <%= messageboard.latest_topic_timeago %>
-        <cite>by <%= messageboard.latest_user %></cite>
+        <cite>by <%= current_user.name %><%#= messageboard.latest_user %></cite>
       </p>
     </footer>
   </div>
