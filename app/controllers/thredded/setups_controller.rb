@@ -1,53 +1,42 @@
 module Thredded
   class SetupsController < Thredded::ApplicationController
     def new
-      show_sign_in_error if !signed_in?
       @messageboard = Messageboard.new
     end
 
     def create
-      @messageboard = Messageboard.new(messageboard_params)
+      params[:messageboard][:slug] = params[:messageboard][:name] if params[:messageboard][:slug].blank?
+      @messageboard = Messageboard.create(messageboard_params)
 
-      if signed_in? && @messageboard.valid? && @messageboard.save
-        @topic = Topic.create(topic_params)
-        @post = Post.create(post_params)
+      if @messageboard.valid?
         @messageboard.add_member(current_user, 'admin')
+        @messageboard.topics.create(topic_params)
 
         redirect_to root_path
       else
-        show_sign_in_error if !signed_in?
         render action: :new
       end
     end
 
     private
 
-    def show_sign_in_error
-      flash.now[:error] = 'You are not signed in. Sign in or create an account before creating your messageboard.'
-    end
-
     def messageboard_params
-      params
-        .require(:messageboard)
-        .permit(:description, :name, :posting_permissions, :security)
+      params.require(:messageboard).permit(:description, :name, :posting_permission, :security, :slug)
     end
 
     def topic_params
       {
-        messageboard: @messageboard,
         user: current_user,
         last_user: current_user,
         title: "Welcome to your messageboard's very first thread",
-      }
-    end
-
-    def post_params
-      {
-        messageboard: @messageboard,
-        postable: @topic,
-        content: "There's not a whole lot here for now.",
-        ip: request.ip,
-        user: current_user,
+        posts_attributes: {
+          '0' => {
+            content: "There's not a whole lot here for now.",
+            ip: '127.0.0.1',
+            messageboard: @messageboard,
+            user: current_user,
+          }
+        }
       }
     end
   end
