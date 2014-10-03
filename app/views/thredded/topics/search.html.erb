@@ -1,0 +1,30 @@
+<% content_for :breadcrumbs do %>
+  <ul class="breadcrumbs">
+    <li><%= link_to 'Forums', thredded.root_path %></li>
+    <li><%= link_to messageboard.name,
+      messageboard_topics_path(messageboard) %></li>
+    <li><span>Results for "<%= params[:q]%>"</span></li>
+  </ul>
+<% end %>
+
+<header>
+  <nav>
+    <%= yield :breadcrumbs %>
+  </nav>
+
+  <%= render 'thredded/shared/currently_online' %>
+  <%= render 'thredded/shared/topic_nav' %>
+</header>
+
+<section class="topics" id="topics_listing">
+  <div class="currently">
+    <%= render partial: 'thredded/topics/topic_condensed',
+      collection: @topics.map(&:decorate), as: :topic %>
+  </div>
+</section>
+
+<footer>
+  <nav>
+    <%= yield :breadcrumbs %>
+  </nav>
+</footer>

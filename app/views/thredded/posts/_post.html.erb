@@ -1,0 +1,29 @@
+<% post = Thredded::PostDecorator.new(post) %>
+
+<%= content_tag_for(:article, post) do %>
+  <% cache post do %>
+    <header>
+      <%= image_tag post.gravatar_url, class: 'avatar' %>
+      <cite>
+        <%= post.user_name %>
+        <%= post.created_at_timeago %>
+      </cite>
+    </header>
+
+    <div class="content">
+      <p><%= post.filtered_content %></p>
+      <ul class="attachments"><%= render post.attachments %></ul>
+    </div>
+  <% end %>
+
+  <footer>
+    <% if can? :edit, post.original %>
+      <%= link_to 'edit post', edit_messageboard_topic_post_path(
+          messageboard,
+          topic,
+          post
+        ),
+        class: 'edit' %>
+    <% end %>
+  </footer>
+<% end %>

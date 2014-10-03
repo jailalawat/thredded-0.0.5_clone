@@ -1,0 +1,20 @@
+<% if can? :read, messageboard.original %>
+  <div class="messageboard">
+    <header>
+      <h2>
+        <%= link_to messageboard.name, messageboard_topics_path(messageboard) %>
+      </h2>
+
+      <div class="meta"><%= messageboard.meta %></div>
+    </header>
+
+    <%= messageboard.description %>
+
+    <footer>
+      <p>
+        <%= messageboard.latest_topic_timeago %>
+        <cite>by <%= current_user.name %><%#= messageboard.latest_user %></cite>
+      </p>
+    </footer>
+  </div>
+<% end %>

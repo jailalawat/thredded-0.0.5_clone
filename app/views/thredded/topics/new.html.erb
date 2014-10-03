@@ -1,0 +1,18 @@
+<header>
+  <nav>
+    <ul class="breadcrumbs">
+      <li><%= link_to 'Forums', thredded.root_path %></li>
+      <li><%= link_to messageboard.name, [messageboard, @topic] %></li>
+      <li><span>Create New Topic</span></li>
+    </ul>
+  </nav>
+</header>
+
+<div class="topic forms">
+  <%= nested_form_for [messageboard, @topic], html: { multipart: true } do |form| %>
+    <ul>
+      <%= render 'form', form: form, messageboard: messageboard.decorate %>
+      <li class="submit"><%= form.submit 'Create New Topic' %></li>
+    </ul>
+  <% end %>
+</div>

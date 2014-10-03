@@ -1,0 +1,31 @@
+<% content_for :breadcrumbs do %>
+  <ul class="breadcrumbs">
+    <li><%= link_to 'Forums', thredded.root_path %></li>
+    <li><span><%= messageboard.name %></span></li>
+  </ul>
+<% end %>
+
+<header>
+  <nav>
+    <%= yield :breadcrumbs %>
+  </nav>
+
+  <%= render 'thredded/shared/currently_online' %>
+  <%= render 'thredded/shared/topic_nav' %>
+</header>
+
+<section class="topics" id="topics_listing">
+  <div class="currently">
+    <%= render partial: 'thredded/topics/topic_condensed',
+      collection: Thredded::UserTopicDecorator.decorate_all(current_user, @topics),
+      as: :topic %>
+  </div>
+</section>
+
+<footer>
+  <%= paginate @topics %>
+
+  <nav>
+    <%= yield :breadcrumbs %>
+  </nav>
+</footer>
